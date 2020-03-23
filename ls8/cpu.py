@@ -2,6 +2,10 @@
 
 import sys
 
+LDI = 0b10000010
+PRN = 0b01000111
+HLT = 0b00000001
+
 class CPU:
     """Main CPU class."""
 
@@ -72,4 +76,31 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
-        pass
+        self.load()
+        while True:
+            ir = self.ram[self.pc]
+            
+            if ir == LDI:
+            # Using `ram_read()`,read the bytes at `PC+1` and `PC+2` from RAM into variables `operand_a` and `operand_b`
+                operand_A = self.ram_read(self.pc + 1)
+                operand_B = self.ram_read(self.pc + 2)
+            
+                # store the data
+                self.reg[operand_A] = operand_B
+                # increment the PC by 3 to skip the arguments
+                self.pc += 3
+                
+            elif ir == PRN:
+                data = self.ram[self.pc + 1]
+                # print
+                print(self.reg[data])
+                # increment the PC by 2 to skip the argument
+                self.pc += 2
+            
+            elif ir == HLT:
+                sys.exit(0)
+            # else, print did not understand
+            else:
+                print(f'I did not understand that command : {ir}')
+                sys.exit(1)
+            
