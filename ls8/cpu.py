@@ -5,6 +5,7 @@ import sys
 LDI = 0b10000010
 PRN = 0b01000111
 HLT = 0b00000001
+MUL = 0b10100010
 
 class CPU:
     """Main CPU class."""
@@ -23,36 +24,49 @@ class CPU:
     def ram_write(self, write_address, write_value):
         self.ram[write_address] = write_value
 
-    def load(self):
+    def load(self, filename):
         """Load a program into memory."""
-
         address = 0
-
-        # For now, we've just hardcoded a program:
-
-        program = [
-            # From print8.ls8
-            0b10000010, # LDI R0,8
-            0b00000000,
-            0b00001000,
-            0b01000111, # PRN R0
-            0b00000000,
-            0b00000001, # HLT
-        ]
-
+        program = []
+        
+        try:
+            with open(filename) as f:
+                for line in f:
+                    # split line before and after comment symbol
+                    comment_split = line.split('#')
+                    
+                    # extract our number
+                    num = comment_split[0].strip()
+                    
+                    if len(num) == 0:
+                        continue 
+                    
+                    # convert our binary string to a number
+                    value = int(num, 2)
+                    program.append(f"{value:08b}")
+                    
+        except FileNotFoundError:
+            print(f'{sys.argv[0]}: {sys.argv[1]} not found')
+            sys.exit(2)
+        
         for instruction in program:
+            instruction = '0b' + instruction
             self.ram[address] = instruction
+            self.ram[address] = int(instruction, 2)
             address += 1
-
 
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
 
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
-        #elif op == "SUB": etc
+        
+        elif op == "MUL":
+            self.reg[reg_a] *= self.reg[reg_b]
+        
         else:
             raise Exception("Unsupported ALU operation")
+        
 
     def trace(self):
         """
@@ -76,31 +90,34 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
-        self.load()
         while True:
             ir = self.ram[self.pc]
+            operand_A = self.ram_read(self.pc + 1)
+            operand_B = self.ram_read(self.pc + 2)
             
             if ir == LDI:
-            # Using `ram_read()`,read the bytes at `PC+1` and `PC+2` from RAM into variables `operand_a` and `operand_b`
-                operand_A = self.ram_read(self.pc + 1)
-                operand_B = self.ram_read(self.pc + 2)
-            
                 # store the data
                 self.reg[operand_A] = operand_B
                 # increment the PC by 3 to skip the arguments
                 self.pc += 3
                 
             elif ir == PRN:
-                data = self.ram[self.pc + 1]
                 # print
-                print(self.reg[data])
+                print(self.reg[operand_A])
                 # increment the PC by 2 to skip the argument
                 self.pc += 2
             
             elif ir == HLT:
-                sys.exit(0)
-            # else, print did not understand
-            else:
-                print(f'I did not understand that command : {ir}')
                 sys.exit(1)
+                
+            elif ir == MUL:
+                self.alu("MUL", operand_A, operand_B)
+                self.pc += 3
+                
+            else:
+                # print an Invalid Instruction message
+                print("Invalid Instruction")
             
+        
+
+
