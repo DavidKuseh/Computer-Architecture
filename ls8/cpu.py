@@ -6,6 +6,8 @@ LDI = 0b10000010
 PRN = 0b01000111
 HLT = 0b00000001
 MUL = 0b10100010
+PUSH = 0b01000101
+POP = 0b01000110
 
 class CPU:
     """Main CPU class."""
@@ -113,6 +115,26 @@ class CPU:
             elif ir == MUL:
                 self.alu("MUL", operand_A, operand_B)
                 self.pc += 3
+                
+            elif ir == POP:
+                sp = 7
+                register = self.ram[self.pc + 1]
+                val = self.ram[self.reg[sp]]
+                
+                self.reg[register] = val 
+                self.reg[sp] += 1
+                
+                self.pc += 2
+
+            elif ir == PUSH:
+                sp = 7
+                register = self.ram[self.pc + 1]
+                val = self.reg[register]
+                
+                self.reg[sp] -= 1
+                self.ram[self.reg[sp]] = val
+                
+                self.pc += 2
                 
             else:
                 # print an Invalid Instruction message
