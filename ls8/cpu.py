@@ -8,6 +8,9 @@ HLT = 0b00000001
 MUL = 0b10100010
 PUSH = 0b01000101
 POP = 0b01000110
+CALL = 0b01010000
+RET = 0b00010001
+ADD = 0b10100000
 
 class CPU:
     """Main CPU class."""
@@ -18,6 +21,7 @@ class CPU:
         self.reg = [0] * 8
         self.pc = 0
         self.sp = 7
+        self.reg[self.sp] = 0xF4
         self.op_pc = False
         self.branchtable = {}
         self.branchtable[LDI] = self.handle_LDI
@@ -26,6 +30,9 @@ class CPU:
         self.branchtable[MUL] = self.handle_MUL
         self.branchtable[PUSH] = self.handle_PUSH
         self.branchtable[POP] = self.handle_POP
+        self.branchtable[CALL] = self.handle_CALL
+        self.branchtable[RET] = self.handle_RET
+        self.branchtable[ADD] = self.handle_ADD
 
     # `ram_read()` should accept the address to read and return the value stored there  
     def ram_read(self, read_address):
@@ -35,50 +42,47 @@ class CPU:
     def ram_write(self, write_address, write_value):
         self.ram[write_address] = write_value
 
-    def load(self, filename):
+    def load(self):
         """Load a program into memory."""
+
         address = 0
-        program = []
-        
+
+        if len(sys.argv) != 2:
+            print("usage: ls8.py <filename>")
+            sys.exit(1)
+
         try:
-            with open(filename) as f:
+            with open(sys.argv[1]) as f:
                 for line in f:
-                    # split line before and after comment symbol
-                    comment_split = line.split('#')
-                    
-                    # extract our number
+
+                # split before and after any comment symbol '#'
+                    comment_split = line.split("#")
                     num = comment_split[0].strip()
-                    
+
+                # ignore blank lines / comment only lines
                     if len(num) == 0:
-                        continue 
-                    
-                    # convert our binary string to a number
+                        continue
+
+                # set the number to an integer of base 2
                     value = int(num, 2)
-                    program.append(f"{value:08b}")
-                    
+                    # program.append(value)
+                    self.ram_write(address, value)
+                    address += 1
+
         except FileNotFoundError:
-            print(f'{sys.argv[0]}: {sys.argv[1]} not found')
+            print(f"{sys.argv[0]}: {sys.argv[1]} not found")
             sys.exit(2)
-        
-        for instruction in program:
-            instruction = '0b' + instruction
-            self.ram[address] = instruction
-            self.ram[address] = int(instruction, 2)
-            address += 1
+
 
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
 
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
-        
         elif op == "MUL":
             self.reg[reg_a] *= self.reg[reg_b]
-        
         else:
             raise Exception("Unsupported ALU operation")
-        
-
     def trace(self):
         """
         Handy function to print out the CPU state. You might want to call this
@@ -101,54 +105,71 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
-        while True:
-            ir = self.ram[self.pc]
-            operand_A = self.ram_read(self.pc + 1)
-            operand_B = self.ram_read(self.pc + 2)
-            
-            if ir in self.branchtable:
-                self.branchtable[ir](operand_A, operand_B)
+        IR = self.ram_read(self.pc)
+        operand_a = self.ram_read(self.pc + 1)
+        operand_b = self.ram_read(self.pc + 2)
+        
+        running = True
+        while running:
+            IR = self.ram_read(self.pc)
+            operand_a = self.ram_read(self.pc + 1)
+            operand_b = self.ram_read(self.pc + 2)
+            if IR in self.branchtable:
+                self.branchtable[IR](operand_a, operand_b)
             else:
-                print(f'Invalid instruction')
+                print(f"Unknown Instruction")
                 sys.exit(1)
-            
+
     
-    def handle_LDI(self, operand_A, operand_B):
-        self.reg[operand_A] = operand_B
+    def handle_LDI(self, op_id1, op_id2):
+        self.reg[op_id1] = op_id2
         self.op_pc = False
         if not self.op_pc:
             self.pc += 3
-            
-    def handle_PRN(self, operand_A, operand_B):
-        print(self.reg[operand_A])
+
+    def handle_PRN(self, op_id1, op_id2):
+        print(self.reg[op_id1])
         self.op_pc = False
         if not self.op_pc:
             self.pc += 2
-            
-    def handle_HLT(self, operand_A, operand_B):
-        sys.exit()
-            
-    def handle_MUL(self, operand_A, operand_B):
-        self.alu('MUL', operand_A, operand_B)
+
+    def handle_MUL(self, op_id1, op_id2):
+        self.alu("MUL",op_id1, op_id2)
         self.op_pc = False
         if not self.op_pc:
-            self.pc += 3
-            
-    def handle_PUSH(self, operand_A, operand_B):
+            self.pc += 3 
+    
+    def handle_ADD(self, op_id1, op_id2):
+        self.alu("ADD",op_id1, op_id2)
+        self.op_pc = False
+        if not self.op_pc:
+            self.pc += 3 
+    
+    def handle_PUSH(self, op_id1, op_id2):
         self.reg[self.sp] -= 1
-        self.ram[self.reg[self.sp]] = self.reg[operand_A]
+        self.ram[self.reg[self.sp]] = self.reg[op_id1]
         self.op_pc = False
         if not self.op_pc:
             self.pc += 2
-            
-    def handle_POP(self, operand_A, operand_B):
-        self.reg[operand_A] = self.ram_read(self.reg[self.sp])
+
+    def handle_POP(self, op_id1, op_id2):
+        self.reg[op_id1] = self.ram_read(self.reg[self.sp])
         self.reg[self.sp] += 1
         self.op_pc = False
         if not self.op_pc:
             self.pc += 2
-            
-            
-        
 
+    def handle_HLT(self, op_id1, op_id2):
+        sys.exit()
+
+   
+    def handle_CALL(self, op_id1, op_id2):
+        self.reg[self.sp] -= 1 
+        self.ram[self.reg[self.sp]] = self.pc + 2
+        self.pc = self.reg[op_id1]
+        self.op_pc = True
+    def handle_RET(self, op_id1, op_id2):
+        self.pc = self.ram_read(self.reg[self.sp])
+        self.reg[self.sp] += 1
+        self.op_pc = True
 
