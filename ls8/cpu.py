@@ -17,6 +17,15 @@ class CPU:
         self.ram = [0] * 256
         self.reg = [0] * 8
         self.pc = 0
+        self.sp = 7
+        self.op_pc = False
+        self.branchtable = {}
+        self.branchtable[LDI] = self.handle_LDI
+        self.branchtable[PRN] = self.handle_PRN
+        self.branchtable[HLT] = self.handle_HLT
+        self.branchtable[MUL] = self.handle_MUL
+        self.branchtable[PUSH] = self.handle_PUSH
+        self.branchtable[POP] = self.handle_POP
 
     # `ram_read()` should accept the address to read and return the value stored there  
     def ram_read(self, read_address):
@@ -97,48 +106,48 @@ class CPU:
             operand_A = self.ram_read(self.pc + 1)
             operand_B = self.ram_read(self.pc + 2)
             
-            if ir == LDI:
-                # store the data
-                self.reg[operand_A] = operand_B
-                # increment the PC by 3 to skip the arguments
-                self.pc += 3
-                
-            elif ir == PRN:
-                # print
-                print(self.reg[operand_A])
-                # increment the PC by 2 to skip the argument
-                self.pc += 2
-            
-            elif ir == HLT:
-                sys.exit(1)
-                
-            elif ir == MUL:
-                self.alu("MUL", operand_A, operand_B)
-                self.pc += 3
-                
-            elif ir == POP:
-                sp = 7
-                register = self.ram[self.pc + 1]
-                val = self.ram[self.reg[sp]]
-                
-                self.reg[register] = val 
-                self.reg[sp] += 1
-                
-                self.pc += 2
-
-            elif ir == PUSH:
-                sp = 7
-                register = self.ram[self.pc + 1]
-                val = self.reg[register]
-                
-                self.reg[sp] -= 1
-                self.ram[self.reg[sp]] = val
-                
-                self.pc += 2
-                
+            if ir in self.branchtable:
+                self.branchtable[ir](operand_A, operand_B)
             else:
-                # print an Invalid Instruction message
-                print("Invalid Instruction")
+                print(f'Invalid instruction')
+                sys.exit(1)
+            
+    
+    def handle_LDI(self, operand_A, operand_B):
+        self.reg[operand_A] = operand_B
+        self.op_pc = False
+        if not self.op_pc:
+            self.pc += 3
+            
+    def handle_PRN(self, operand_A, operand_B):
+        print(self.reg[operand_A])
+        self.op_pc = False
+        if not self.op_pc:
+            self.pc += 2
+            
+    def handle_HLT(self, operand_A, operand_B):
+        sys.exit()
+            
+    def handle_MUL(self, operand_A, operand_B):
+        self.alu('MUL', operand_A, operand_B)
+        self.op_pc = False
+        if not self.op_pc:
+            self.pc += 3
+            
+    def handle_PUSH(self, operand_A, operand_B):
+        self.reg[self.sp] -= 1
+        self.ram[self.reg[self.sp]] = self.reg[operand_A]
+        self.op_pc = False
+        if not self.op_pc:
+            self.pc += 2
+            
+    def handle_POP(self, operand_A, operand_B):
+        self.reg[operand_A] = self.ram_read(self.reg[self.sp])
+        self.reg[self.sp] += 1
+        self.op_pc = False
+        if not self.op_pc:
+            self.pc += 2
+            
             
         
 
